@@ -1,4 +1,5 @@
 var ValidationError = require('../').ValidationError;
+var semver = require('semver');
 var traverse = require('traverse');
 
 module.exports = function(dataSource, should) {
@@ -2078,6 +2079,15 @@ module.exports = function(dataSource, should) {
       describe.skip('replaceById - not implemented', function(){});
     } else {
       describe('PersistedModel.replaceOrCreate', function() {
+        var isOldMongo;
+        before(function() {
+          if (dataSource.connector.name === 'mongodb' && 
+                  process.env.MONGODB_VERSION && 
+                  !semver.satisfies(process.env.MONGODB_VERSION, '~2.6.0')) {
+            isOldMongo = true;
+          }
+        });
+        
         it('triggers hooks in the correct order on create', function(done) {
           monitorHookExecution();
 
@@ -2403,13 +2413,20 @@ module.exports = function(dataSource, should) {
             { id: 'new-id', name: 'a name' },
             function(err, instance) {
               if (err) return done(err);
-              observedContexts.should.eql(aTestModelCtx({
+              
+              var expected = {
                 data: {
                   id: 'new-id',
                   name: 'a name'
-                },
-                isNewInstance: true
-              }));     
+                }
+              };
+              
+              if(isOldMongo)
+                expected.isNewInstance = undefined;
+              else
+                expected.isNewInstance = true;              
+              
+              observedContexts.should.eql(aTestModelCtx(expected));     
               done();
             });
         });
@@ -2422,14 +2439,19 @@ module.exports = function(dataSource, should) {
             function(err, instance) {
               if (err) return done(err);
 
+              var expected = {
+                data: {
+                  id: existingInstance.id,
+                  name: 'replaced name'
+                }
+              };
+               if(isOldMongo)
+                 expected.isNewInstance = undefined;
+               else
+                 expected.isNewInstance = false;
+              
               if (dataSource.connector.replaceOrCreate) {
-                observedContexts.should.eql(aTestModelCtx({
-                  data: {
-                    id: existingInstance.id,
-                    name: 'replaced name'
-                  },
-                  isNewInstance: false
-                }));
+                observedContexts.should.eql(aTestModelCtx(expected));
               } else {
                 // TODO: Please see loopback-datasource-juggler/issues#836
                 // 
@@ -2479,14 +2501,21 @@ module.exports = function(dataSource, should) {
             { id: existingInstance.id, name: 'replaced name' },
             function(err, instance) {
               if (err) return done(err);
-              observedContexts.should.eql(aTestModelCtx({
+              
+              var expected = {
                 instance: {
                   id: existingInstance.id,
                   name: 'replaced name',
                   extra: undefined
-                },
-                isNewInstance: false
-              }));
+                }
+              };
+              
+              if (isOldMongo)
+                expected.isNewInstance = undefined;
+              else
+                expected.isNewInstance = false;
+              
+              observedContexts.should.eql(aTestModelCtx(expected));
               done();
             });
         });
@@ -2498,14 +2527,21 @@ module.exports = function(dataSource, should) {
             { id: 'new-id', name: 'a name' },
             function(err, instance) {
               if (err) return done(err);
-              observedContexts.should.eql(aTestModelCtx({
+              
+              var expected = {
                 instance: {
                   id: instance.id,
                   name: 'a name',
                   extra: undefined
-                },
-                isNewInstance: true
-              }));
+                }
+              };
+              
+              if (isOldMongo)
+                expected.isNewInstance = undefined;
+              else
+                expected.isNewInstance = true;
+              
+              observedContexts.should.eql(aTestModelCtx(expected));
               done();
             });
         });
